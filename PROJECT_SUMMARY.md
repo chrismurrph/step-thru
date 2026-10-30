@@ -43,6 +43,6 @@ Fedora; it does not affect the run.
 
 ## Users
 
-- **fulcro-app**: not yet switched over. Its own copy in `playwright.session` is still the
-  one in use.
+- **fulcro-app**: switched over 2026-10-30, as a git dependency. `playwright.session`
+  keeps an adapter `demo!` that passes its page, its default vars and an `:on-phase` hook.
 - **POSES family**: not yet using it.
