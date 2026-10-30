@@ -1,6 +1,7 @@
 (ns step-thru.core-test
   (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [step-thru.core :as st])
+            [step-thru.core :as st]
+            [step-thru.record :as rec])
   (:import [com.microsoft.playwright Playwright BrowserType$LaunchOptions]))
 
 ;; A headless browser plays the presenter: a script in the page records each
@@ -12,6 +13,7 @@
   "<html><body><p>step-thru test page</p><script>
    window.__seen = [];
    window.__abortOn = null;
+   window.__press = true;
    setInterval(function () {
      var s = document.getElementById('step-thru-caption');
      var st = window.__stepThruState;
@@ -20,6 +22,7 @@
        window.__lastArmed = st.armedAt;
        window.__seen.push(s.textContent);
      }
+     if (!window.__press) { return; }
      var code = (s.textContent === window.__abortOn) ? 'Escape' : 'Space';
      window.dispatchEvent(new KeyboardEvent('keydown', {code: code, bubbles: true}));
    }, 100);
@@ -93,3 +96,26 @@
 (deftest page-is-required
   (is (thrown-with-msg? clojure.lang.ExceptionInfo #"needs :page"
                         (st/demo! {} (fn [] :never)))))
+
+(deftest auto-advance-needs-no-keys
+  (let [p (fresh-page)]
+    (.evaluate p "window.__press = false")
+    (is (= :ok (st/demo! {:page p :auto-advance-ms 300}
+                         (fn [] (st/step! "one") (st/step! "two") :ok))))
+    (testing "no begin or finished caption when advancing by itself"
+      (is (= ["one" "two"] (seen p))))))
+
+(deftest record-saves-a-phone-video
+  (let [file (str (System/getProperty "java.io.tmpdir") "/step-thru-test/phone.webm")]
+    (.delete (java.io.File. file))
+    (is (= [file ["one" "two"]]
+           (let [captions (atom nil)]
+             [(rec/record! {:browser *browser* :file file :auto-advance-ms 300}
+                           (fn [page]
+                             (.setContent page presenter-html)
+                             (.evaluate page "window.__press = false")
+                             (st/step! "one")
+                             (st/step! "two")
+                             (reset! captions (seen page))))
+              @captions])))
+    (is (pos? (.length (java.io.File. file))))))

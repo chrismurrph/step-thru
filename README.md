@@ -50,6 +50,33 @@ stay in the test for good:
 | `:page` | A Playwright `Page`, or a no-arg fn (or var) that returns one. Required. |
 | `:vars` | Vars to wrap so that each call pauses first. Default `[]`. |
 | `:on-phase` | Optional fn, called with `:stepping`, `:awaiting-dismiss` and `:done`. |
+| `:auto-advance-ms` | Optional. Each step goes on by itself after this long. |
+
+## Recording a video
+
+The same script that you step through can make a video for your user docs. `record!` runs
+the demo on a phone-sized screen, with each step going on by itself, and saves a WebM:
+
+```clojure
+(require '[step-thru.record :as rec])
+
+(rec/record! {:browser browser :file "videos/start-an-order.webm"}
+             (fn [page]
+               (.navigate page "https://my-app.example/")
+               (my-test page)))
+```
+
+| Key | Meaning |
+|---|---|
+| `:browser` | A Playwright `Browser`. Required. |
+| `:file` | Where to save the video. Required. |
+| `:device` | `rec/phone` (the default), `rec/desktop`, or your own map of the same shape. |
+| `:auto-advance-ms` | How long each caption stays. Default 2500. |
+| `:vars` | As for `demo!`. |
+
+The test starts in a fresh browser context on a blank page, so it navigates and signs in
+itself. The video is the size of the screen, 390 × 844 for `rec/phone`: Playwright records
+at one pixel per CSS pixel.
 
 ## Things to know
 

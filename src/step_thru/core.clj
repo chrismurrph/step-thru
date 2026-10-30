@@ -56,7 +56,7 @@
        "   s.id = 'step-thru-caption';"
        "   o.appendChild(s);"
        " }"
-       " s.style.cssText = 'display:inline-block;background:rgba(17,24,39,0.85);color:#f9fafb;padding:10px 18px;border-radius:6px;';"
+       " s.style.cssText = 'display:inline-block;max-width:calc(100% - 24px);box-sizing:border-box;background:rgba(17,24,39,0.85);color:#f9fafb;padding:10px 18px;border-radius:6px;';"
        " s.textContent = cap;"
        "}"))
 
@@ -98,10 +98,13 @@
    The optional second arity takes timeout-ms: after that long with no SPACE
    the step returns nil instead of waiting on. Mid-demo steps never pass it
    (waiting on the human is the point); the terminal caption passes 60000 so it
-   dismisses itself rather than holding the REPL until someone presses SPACE."
+   dismisses itself rather than holding the REPL until someone presses SPACE.
+
+   When the demo has :auto-advance-ms, the step advances by itself after that
+   long, as if SPACE were pressed. SPACE and ESCAPE still work."
   ([caption] (step! caption nil))
   ([caption timeout-ms]
-   (when @active
+   (when-let [{:keys [auto-advance-ms]} @active]
      (let [p (page)]
        (.evaluate p inject-js caption)
        (loop [waited 0]
@@ -115,7 +118,8 @@
              (= "abort" state)
              (throw (ex-info "demo aborted" {:reason :demo-aborted :caption caption}))
 
-             (= "advance" state)
+             (or (= "advance" state)
+                 (and auto-advance-ms (>= waited auto-advance-ms)))
              (do (.evaluate p
                             (str "cap => { window.__stepThruState.advance = false;"
                                  " var s = document.getElementById('step-thru-caption');"
@@ -158,6 +162,13 @@
                 its caption. Default []: only the test's own step! calls pause.
      :on-phase  optional fn called with :stepping, :awaiting-dismiss and :done,
                 for a dashboard that wants to show how the demo stands.
+     :auto-advance-ms
+                optional. Each step goes on by itself after this long, so the
+                demo runs with nobody at the keyboard - for recording a video
+                (see step-thru.record). There is then no press-SPACE-to-begin
+                step and no finished caption: the last step's work stays on
+                screen for this long instead. A failure or abort still shows
+                its caption, for this long.
 
    Arms every step! inside the test, wraps :vars with with-redefs (no edits to
    the test or its helpers), and shows a press-SPACE-to-begin step first so the
@@ -173,7 +184,7 @@
    dismissing itself after 60 seconds. Returns test-fn's value, or rethrows
    its exception (ESCAPE throws :demo-aborted). The finally removes the
    overlay either way."
-  [{:keys [vars] :as opts} test-fn]
+  [{:keys [vars auto-advance-ms] :as opts} test-fn]
   (when-not (:page opts)
     (throw (ex-info "step-thru/demo! needs :page" {:opts opts})))
   (reset! active opts)
@@ -182,7 +193,8 @@
     (let [p (page)]
       (.bringToFront p)
       (.evaluate p "window.__stepThruState = {advance: false, abort: false}; undefined"))
-    (step! "Demo armed - press SPACE to begin")
+    (when-not auto-advance-ms
+      (step! "Demo armed - press SPACE to begin"))
     (let [result (with-redefs-fn
                    (into {} (map (fn [v]
                                    (let [orig @v
@@ -192,7 +204,9 @@
                    test-fn)
           shown (let [s (pr-str result)]
                   (if (> (count s) 200) (str (subs s 0 200) "…") s))]
-      (finish! (str "Demo finished - " shown))
+      (if auto-advance-ms
+        (Thread/sleep (long auto-advance-ms))
+        (finish! (str "Demo finished - " shown)))
       result)
     (catch Throwable e
       (finish! (if (= :demo-aborted (:reason (ex-data e)))
