@@ -33,6 +33,15 @@ stay in the test for good:
 (st/demo! {:page page} #(my-test page))
 ```
 
+A caption sits at the top of the screen. When it would hide what the step is about, give
+that step its own position: `:top`, `:middle`, `:bottom`, or a percentage of the screen
+height.
+
+```clojure
+(st/step! "Open the bill to check the order" {:at :bottom})
+(st/step! "Tap Give Change" {:at 40})
+```
+
 ## How a demo runs
 
 - It starts on "Demo armed - press SPACE to begin", so you can start the screen recorder.

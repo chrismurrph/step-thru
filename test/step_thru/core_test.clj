@@ -12,6 +12,7 @@
 (def ^:private presenter-html
   "<html><body><p>step-thru test page</p><script>
    window.__seen = [];
+   window.__pos = [];
    window.__abortOn = null;
    window.__press = true;
    setInterval(function () {
@@ -21,6 +22,8 @@
      if (st.armedAt !== window.__lastArmed) {
        window.__lastArmed = st.armedAt;
        window.__seen.push(s.textContent);
+       var r = s.getBoundingClientRect();
+       window.__pos.push([Math.round(r.top), Math.round(r.bottom), window.innerHeight]);
      }
      if (!window.__press) { return; }
      var code = (s.textContent === window.__abortOn) ? 'Escape' : 'Space';
@@ -119,3 +122,23 @@
                              (reset! captions (seen page))))
               @captions])))
     (is (pos? (.length (java.io.File. file))))))
+
+(deftest each-step-places-its-caption
+  (let [p (fresh-page)]
+    (st/demo! {:page p}
+              (fn []
+                (st/step! "top")
+                (st/step! "bottom" {:at :bottom})
+                (st/step! "middle" {:at :middle})
+                (st/step! "a quarter down" {:at 25})))
+    ;; [caption top, caption bottom, screen height] per caption, after the begin caption
+    (let [[top bottom middle quarter] (->> (.evaluate p "() => window.__pos") (map vec) rest)
+          near? (fn [a b] (<= (abs (- a b)) 2))]
+      (testing ":top is the default"
+        (is (< (first top) 30)))
+      (testing ":bottom ends at the bottom edge, less the overlay's 12px padding"
+        (is (near? (+ (second bottom) 12) (nth bottom 2))))
+      (testing ":middle is centred"
+        (is (near? (/ (+ (first middle) (second middle)) 2) (/ (nth middle 2) 2))))
+      (testing "25 is a quarter of the way down"
+        (is (< (first top) (first quarter) (first middle)))))))

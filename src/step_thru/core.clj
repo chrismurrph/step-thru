@@ -28,7 +28,7 @@
       (catch Exception _ nil))))
 
 (def ^:private inject-js
-  (str "cap => {"
+  (str "a => { var cap = a.cap, at = a.at;"
        " if (!window.__stepThruState) { window.__stepThruState = {advance: false, abort: false}; }"
        " window.__stepThruState.advance = false;"
        " window.__stepThruState.armedAt = Date.now();"
@@ -49,7 +49,7 @@
        "   o.id = 'step-thru-overlay';"
        "   document.body.appendChild(o);"
        " }"
-       " o.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2147483647;pointer-events:none;background:none;font:600 18px/1.4 system-ui,sans-serif;padding:12px 0;text-align:center;display:block;';"
+       " o.style.cssText = 'position:fixed;left:0;right:0;top:' + at + '%;transform:translateY(-' + at + '%);z-index:2147483647;pointer-events:none;background:none;font:600 18px/1.4 system-ui,sans-serif;padding:12px 0;text-align:center;display:block;';"
        " var s = document.getElementById('step-thru-caption');"
        " if (!s) {"
        "   s = document.createElement('span');"
@@ -79,6 +79,15 @@
                     " undefined"))
     (catch Exception _ nil)))
 
+(defn- at->pct
+  "A caption position as a percentage down the screen."
+  [at]
+  (case at
+    (nil :top) 0
+    :middle 50
+    :bottom 100
+    at))
+
 (defn step!
   "Step gate, taking a caption for the audience. When no demo runs (a normal
    test run) it returns nil at once, so a test can carry step! captions
@@ -95,23 +104,29 @@
    throws a named :demo-step-timeout instead of letting an nREPL transport time
    out silently.
 
-   The optional second arity takes timeout-ms: after that long with no SPACE
-   the step returns nil instead of waiting on. Mid-demo steps never pass it
-   (waiting on the human is the point); the terminal caption passes 60000 so it
-   dismisses itself rather than holding the REPL until someone presses SPACE.
+   The optional second argument is a map:
+
+     :at          where the caption sits: :top (the default), :middle, :bottom,
+                  or a percentage of the screen height (0 top, 100 bottom). Set
+                  it per step to keep the caption clear of what the step shows.
+     :timeout-ms  after this long with no SPACE the step returns nil instead
+                  of waiting on. Mid-demo steps never pass it (waiting on the
+                  human is the point); the terminal caption passes 60000 so it
+                  dismisses itself rather than holding the REPL for ever.
 
    When the demo has :auto-advance-ms, the step advances by itself after that
    long, as if SPACE were pressed. SPACE and ESCAPE still work."
-  ([caption] (step! caption nil))
-  ([caption timeout-ms]
+  ([caption] (step! caption {}))
+  ([caption {:keys [at timeout-ms]}]
    (when-let [{:keys [auto-advance-ms]} @active]
-     (let [p (page)]
-       (.evaluate p inject-js caption)
+     (let [p (page)
+           arg {"cap" caption "at" (double (at->pct at))}]
+       (.evaluate p inject-js arg)
        (loop [waited 0]
          (let [state (.evaluate p poll-js)]
            (cond
              (nil? state)
-             (do (.evaluate p inject-js caption)
+             (do (.evaluate p inject-js arg)
                  (Thread/sleep 150)
                  (recur (+ waited 150)))
 
@@ -151,7 +166,7 @@
   (try
     (phase! :awaiting-dismiss)
     (.evaluate (page) "if (window.__stepThruState) { window.__stepThruState.advance = false; window.__stepThruState.abort = false; } undefined")
-    (step! caption 60000)
+    (step! caption {:timeout-ms 60000})
     (catch Exception _ nil)))
 
 (defn demo!
