@@ -41,19 +41,20 @@
      :file             where to save the video, e.g. \"videos/sign-in.webm\". Required.
      :device           phone (the default) or desktop, or a map of the same shape.
      :auto-advance-ms  how long each caption stays before the demo goes on.
-                       Default 2500.
+                       Default 3000.
      :vars             as for step-thru.core/demo!.
+     :marks            as for step-thru.core/demo!.
 
    Returns file. A failure or abort still saves the video (it ends on the
    failure caption) and then rethrows."
-  [{:keys [browser file device auto-advance-ms vars]
-    :or {device phone auto-advance-ms 2500}}
+  [{:keys [browser file device auto-advance-ms vars marks]
+    :or {device phone auto-advance-ms 3000}}
    test-fn]
   (let [video-dir (Files/createTempDirectory "step-thru" (make-array FileAttribute 0))
         context (.newContext browser (context-options device video-dir))
         page (.newPage context)]
     (try
-      (st/demo! {:page page :vars (or vars []) :auto-advance-ms auto-advance-ms}
+      (st/demo! {:page page :vars (or vars []) :auto-advance-ms auto-advance-ms :marks marks}
                 #(test-fn page))
       file
       (finally

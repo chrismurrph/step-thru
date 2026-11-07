@@ -13,6 +13,7 @@
   "<html><body><p>step-thru test page</p><script>
    window.__seen = [];
    window.__pos = [];
+   window.__look = [];
    window.__abortOn = null;
    window.__press = true;
    setInterval(function () {
@@ -24,6 +25,7 @@
        window.__seen.push(s.textContent);
        var r = s.getBoundingClientRect();
        window.__pos.push([Math.round(r.top), Math.round(r.bottom), window.innerHeight]);
+       window.__look.push([s.style.fontStyle, s.style.background, s.querySelectorAll('.step-thru-mark').length]);
      }
      if (!window.__press) { return; }
      var code = (s.textContent === window.__abortOn) ? 'Escape' : 'Space';
@@ -142,3 +144,82 @@
         (is (near? (/ (+ (first middle) (second middle)) 2) (/ (nth middle 2) 2))))
       (testing "25 is a quarter of the way down"
         (is (< (first top) (first quarter) (first middle)))))))
+
+(deftest a-tap-shows-a-circle-where-it-lands
+  (let [p (fresh-page)
+        circles #(vec (.evaluate p "() => Array.from(document.querySelectorAll('.step-thru-tap')).map(d => { var r = d.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; })"))]
+    (st/demo! {:page p}
+              (fn []
+                (st/step! "tap the text")
+                (let [box (.boundingBox (.locator p "p"))
+                      centre [(Math/round (+ (.x box) (/ (.width box) 2)))
+                              (Math/round (+ (.y box) (/ (.height box) 2)))]]
+                  (.click (.locator p "p"))
+                  (testing "a circle appears, centred on the click"
+                    (is (= [centre] (mapv (partial mapv long) (circles)))))
+                  (Thread/sleep 1200)
+                  (testing "and is gone after a second"
+                    (is (= [] (circles)))))))))
+
+(deftest marked-labels-keep-their-colours
+  (let [p (fresh-page)
+        spans #(mapv vec (.evaluate p "() => Array.from(document.querySelectorAll('#step-thru-caption .step-thru-mark')).map(e => [e.textContent, e.style.color])"))
+        caption-text #(.evaluate p "() => document.getElementById('step-thru-caption').textContent")]
+    (st/demo! {:page p
+               :marks [{:open "[" :close "]" :color "rgb(253, 224, 71)"}
+                       {:open "“" :close "”" :color "rgb(96, 165, 250)"}]}
+              (fn []
+                (st/step! "Tap [BILL (3)], then “Bill Out” [unclosed")
+                (testing "each marked label is its own span in its colour, marks included"
+                  (is (= [["[BILL (3)]" "rgb(253, 224, 71)"] ["“Bill Out”" "rgb(96, 165, 250)"]]
+                         (spans))))
+                (testing "the caption reads as written, an unclosed mark left plain"
+                  (is (= "Tap [BILL (3)], then “Bill Out” [unclosed" (caption-text))))))))
+
+(deftest a-marked-label-points-at-its-control
+  (let [p (fresh-page)
+        spans #(mapv str (.evaluate p "() => Array.from(document.querySelectorAll('#step-thru-caption .step-thru-mark')).map(e => e.textContent)"))]
+    (.evaluate p "document.body.insertAdjacentHTML('beforeend', '<button style=\"position:fixed;top:5px;left:5px\">Top Btn</button><button style=\"position:fixed;bottom:5px;left:5px\">Low Btn</button>')")
+    (st/demo! {:page p :marks [{:open "“" :close "”" :color "rgb(96, 165, 250)"}]}
+              (fn []
+                (st/step! "Tap “Top Btn”, then “Low Btn”, not “Missing”" {:at :middle})
+                (is (= ["“Top Btn”▲" "“Low Btn”▼" "“Missing”"] (spans)))))))
+
+(deftest a-held-tap-keeps-its-circle-until-let-go
+  (let [p (fresh-page)
+        circles #(long (.evaluate p "() => document.querySelectorAll('.step-thru-tap').length"))
+        clicked #(boolean (.evaluate p "() => !!window.__clicked"))]
+    (.evaluate p "document.querySelector('p').addEventListener('click', () => { window.__clicked = true; })")
+    (st/demo! {:page p}
+              (fn []
+                (st/step! "tap the text")
+                (let [tapping (future (st/tap! (.locator p "p") 1500))]
+                  (Thread/sleep 1200)
+                  (testing "while the press is held: the circle shows, and the app has not had the tap yet"
+                    (is (= 1 (circles)))
+                    (is (false? (clicked))))
+                  @tapping
+                  (testing "after the press: the app has the tap"
+                    (is (true? (clicked))))
+                  (Thread/sleep 800)
+                  (testing "and the circle is gone soon after"
+                    (is (= 0 (circles)))))))))
+
+(deftest an-event-looks-different-and-takes-longer
+  (let [p (fresh-page)
+        timed (fn [f] (let [t0 (System/currentTimeMillis)] (f) (- (System/currentTimeMillis) t0)))]
+    (.evaluate p "window.__press = false")
+    (st/demo! {:page p :auto-advance-ms 400 :marks [{:open "“" :close "”" :color "rgb(96, 165, 250)"}]}
+              (fn []
+                (let [step-ms (timed #(st/step! "Tap “Pay”"))
+                      event-ms (timed #(st/event! "The customer hands over “1000”"))
+                      long-ms (timed #(st/event! "Later, the customer asks for the bill" {:ms 1200}))]
+                  (testing "a step shows marks; an event has its own look and none"
+                    (is (= [["" "rgba(17, 24, 39, 0.85)" 1]
+                            ["italic" "rgba(146, 64, 14, 0.92)" 0]
+                            ["italic" "rgba(146, 64, 14, 0.92)" 0]]
+                           (mapv vec (.evaluate p "() => window.__look")))))
+                  (testing "an event stays one and a half times as long as a step, or its own :ms"
+                    (is (< step-ms 600))
+                    (is (<= 600 event-ms 900))
+                    (is (<= 1200 long-ms 1500))))))))

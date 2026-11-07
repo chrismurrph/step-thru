@@ -42,8 +42,23 @@ height.
 (st/step! "Tap Give Change" {:at 40})
 ```
 
+Some steps happen outside the software: a customer orders, or hands over money. `event!`
+shows them in their own look, a brown background and italic text, with no tap and no
+arrows. When the demo goes on by itself, an event stays one and a half times as long as a
+step, or as long as its own `:ms`.
+
+```clojure
+(st/event! "The customer hands over a ₱1000 note")
+(st/event! "Later, the customer asks for the bill" {:ms 6000 :at :bottom})
+```
+
 ## How a demo runs
 
+- Every tap or click shows as a red circle where it lands, for as long as the press
+  and at least 0.7 seconds before it fades, so the audience sees what was pressed. A Playwright click
+  presses and lets go at once; when the app changes the screen on the tap, use
+  `(st/tap! locator)` instead, which holds the press for 0.7 seconds so the circle shows
+  on the control first.
 - It starts on "Demo armed - press SPACE to begin", so you can start the screen recorder.
 - **Space** goes on. The caption stays white while it waits for you, and turns light green
   while the step's work runs.
@@ -60,6 +75,7 @@ height.
 | `:vars` | Vars to wrap so that each call pauses first. Default `[]`. |
 | `:on-phase` | Optional fn, called with `:stepping`, `:awaiting-dismiss` and `:done`. |
 | `:auto-advance-ms` | Optional. Each step goes on by itself after this long. |
+| `:marks` | Optional. Colours for marked labels in a caption, e.g. tabs in `[ ]` yellow and buttons in `“ ”` blue. Each label also gets an arrow, ▲ or ▼, toward the control with that text. |
 
 ## Recording a video
 
@@ -80,8 +96,9 @@ the demo on a phone-sized screen, with each step going on by itself, and saves a
 | `:browser` | A Playwright `Browser`. Required. |
 | `:file` | Where to save the video. Required. |
 | `:device` | `rec/phone` (the default), `rec/desktop`, or your own map of the same shape. |
-| `:auto-advance-ms` | How long each caption stays. Default 2500. |
+| `:auto-advance-ms` | How long each caption stays. Default 3000. |
 | `:vars` | As for `demo!`. |
+| `:marks` | As for `demo!`. |
 
 The test starts in a fresh browser context on a blank page, so it navigates and signs in
 itself. The video is the size of the screen, 390 × 844 for `rec/phone`: Playwright records

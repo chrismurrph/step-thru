@@ -45,4 +45,5 @@ Fedora; it does not affect the run.
 
 - **fulcro-app**: switched over 2026-10-30, as a git dependency. `playwright.session`
   keeps an adapter `demo!` that passes its page, its default vars and an `:on-phase` hook.
-- **POSES family**: not yet using it.
+- **POSES**: since 2026-11-07, in the `:pw` alias. `/src-dev/playwright/how_to.clj` records
+  user-doc videos from captioned journeys, on an Android phone 360 wide.
