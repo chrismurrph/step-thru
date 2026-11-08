@@ -11,7 +11,7 @@ forms). The plan and its reasons are in `~/programs/PW_DEMO_LIBRARY.md`.
 
 | Path | What |
 |---|---|
-| `/src/step_thru/core.clj` | The core: `step!`, `demo!`, `remove-overlay!`. Interop only, no imports |
+| `/src/step_thru/core.clj` | The core: `step!`, `event!`, `tap!`, `demo!`, `remove-overlay!`. Interop only, no imports |
 | `/src/step_thru/record.clj` | `record!`: runs a demo with auto-advance in a fresh context that records video. Imports Playwright |
 | `/test/step_thru/core_test.clj` | Headless Chromium tests |
 | `/README.md` | The public face: pitch, example, options |
@@ -31,6 +31,11 @@ forms). The plan and its reasons are in `~/programs/PW_DEMO_LIBRARY.md`.
 - **Video resolution is the viewport's.** Playwright records at 1x: a larger
   `recordVideoSize` only pads the frame with grey (checked 2026-10-30). So a phone video
   is 390 × 844.
+- **What a caption can show** (all page-side, injected with the overlay): its own height per
+  step (`:at`), coloured marked labels with an arrow, ▲ or ▼, toward the control whose text
+  matches (`:marks`), a red circle where each tap lands, held for as long as the press
+  (`tap!` holds 0.7 seconds), and `event!` captions for things outside the software (brown,
+  italic, no arrows, 1.5 times as long). The README describes each one.
 - **Page-side names** are `#step-thru-overlay`, `#step-thru-caption`,
   `window.__stepThruState` and `window.__stepThruListener`.
 
